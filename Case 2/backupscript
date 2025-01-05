@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# Konfigurasi
+DB_USER="chandra"
+DB_PASSWORD="chand123"
+DB_NAME="database"
+BACKUP_DIR="/path/to/your/backup/directory"
+LOG_FILE="/path/to/your/log/file.log"
+
+# Fungsi untuk membuat backup dan kompresi
+backup_db() {
+  date=$(date +"%Y-%m-%d_%H%M%S")
+  backup_file="$BACKUP_DIR/$DB_NAME-$date.sql.gz"
+  mysqldump -u $DB_USER -p$DB_PASSWORD $DB_NAME | gzip > $backup_file
+  echo "$(date) - Backup database $DB_NAME berhasil disimpan sebagai $backup_file" >> $LOG_FILE
+}
+
+# Fungsi untuk menghapus backup yang lebih tua dari 30 hari
+cleanup_old_backups() {
+  find $BACKUP_DIR -type f -name "$DB_NAME-*.sql.gz" -mtime +30 -delete
+  echo "$(date) - Backup yang lebih tua dari 30 hari telah dihapus" >> $LOG_FILE
+}
+
+# Jalankan fungsi backup dan cleanup
+backup_db
+cleanup_old_backups

@@ -1,0 +1,166 @@
+#!/bin/bash
+
+# Membuat direktori proyek
+mkdir -p laravel-docker
+cd laravel-docker
+
+# Membuat struktur direktori
+mkdir -p src nginx/conf.d mysql/data
+
+# Membuat file docker-compose.yml
+cat > docker-compose.yml << 'EOL'
+version: '3'
+
+services:
+  # Nginx Service
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./src:/var/www/html
+      - ./nginx/conf.d:/etc/nginx/conf.d
+    depends_on:
+      - php
+    networks:
+      - laravel-network
+
+  # PHP Service
+  php:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./src:/var/www/html
+    networks:
+      - laravel-network
+
+  # MariaDB Service
+  mariadb:
+    image: mariadb:latest
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql/data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: laravel
+      MYSQL_USER: laravel
+      MYSQL_PASSWORD: secret
+    networks:
+      - laravel-network
+
+networks:
+  laravel-network:
+    driver: bridge
+EOL
+
+# Membuat Dockerfile untuk PHP
+cat > Dockerfile << 'EOL'
+FROM php:8.2-fpm
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libonig-dev \
+    libxml2-dev \
+    zip \
+    unzip
+
+# Clear cache
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install PHP extensions
+RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
+
+# Get latest Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Set working directory
+WORKDIR /var/www/html
+EOL
+
+# Membuat konfigurasi Nginx
+cat > nginx/conf.d/default.conf << 'EOL'
+server {
+    listen 80;
+    server_name localhost;
+    root /var/www/html/public;
+    index index.php index.html index.htm;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass php:9000;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+}
+EOL
+
+# Build containers
+docker-compose build
+
+# Create Laravel project
+docker-compose run --rm php composer create-project laravel/laravel .
+
+# Set permissions
+sudo chown -R $USER:$USER src/
+
+# Modify welcome.blade.php to show hello world with name
+cat > src/resources/views/welcome.blade.php << 'EOL'
+<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Laravel</title>
+        <!-- Fonts -->
+        <link rel="preconnect" href="https://fonts.bunny.net">
+        <link href="https://fonts.bunny.net/css?family=figtree:400,600&display=swap" rel="stylesheet" />
+        <style>
+            body {
+                font-family: 'Figtree', sans-serif;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+                background-color: #f3f4f6;
+            }
+            .message {
+                text-align: center;
+                padding: 2rem;
+                background-color: white;
+                border-radius: 0.5rem;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            }
+            h1 {
+                color: #1a202c;
+                font-size: 2.5rem;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="message">
+            <h1>Hello World!</h1>
+            <p>Created by Claude</p>
+        </div>
+    </body>
+</html>
+EOL
+
+# Start containers
+docker-compose up -d
+
+echo "Laravel telah berhasil diinstal!"
+echo "Buka http://localhost untuk melihat aplikasi"
+echo ""
+echo "Kredensial Database:"
+echo "Database: laravel"
+echo "Username: laravel"
+echo "Password: secret"
