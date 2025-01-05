@@ -177,4 +177,3 @@ echo "Kredensial Database:"
 echo "Database: laravel"
 echo "Username: laravel"
 echo "Password: secret"
-EOL
