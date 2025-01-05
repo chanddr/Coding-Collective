@@ -162,7 +162,6 @@ cat > src/resources/views/welcome.blade.php << 'EOL'
     <body>
         <div class="message">
             <h1>Hello World!</h1>
-            <p>Created by Claude</p>
         </div>
     </body>
 </html>
