@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Direktori tempat file log disimpan
+LOG_DIR="/path/to/log/directory"
+
+# Dapatkan waktu sekarang dalam UTC dan waktu 10 menit sebelumnya
+CURRENT_TIME=$(date -u "+%d/%b/%Y:%H:%M:%S")
+START_TIME=$(date -u -d "-10 minutes" "+%d/%b/%Y:%H:%M:%S")
+
+# Ubah format waktu menjadi timestamp epoch
+START_EPOCH=$(date -u -d "$START_TIME" "+%s")
+CURRENT_EPOCH=$(date -u -d "$CURRENT_TIME" "+%s")
+
+# Cari semua file log di direktori
+for LOG_FILE in "$LOG_DIR"/*.log; do
+  # Baca file log baris per baris
+  while read -r LINE; do
+    # Ambil waktu dari log (di dalam tanda kurung [])
+    LOG_TIME=$(echo "$LINE" | grep -oP '\[\K[^\]]+')
+    
+    # Ubah waktu log menjadi timestamp epoch
+    LOG_EPOCH=$(date -u -d "${LOG_TIME/+0000/}" "+%s" 2>/dev/null)
+    
+    # Periksa apakah log berada dalam 10 menit terakhir
+    if [[ $LOG_EPOCH -ge $START_EPOCH && $LOG_EPOCH -le $CURRENT_EPOCH ]]; then
+      # Periksa apakah kode respons adalah 500
+      if echo "$LINE" | grep -q 'HTTP/.*" 500 '; then
+        echo "$LINE" # Tampilkan log yang relevan
+      fi
+    fi
+  done < "$LOG_FILE"
+done
