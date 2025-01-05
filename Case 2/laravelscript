@@ -32,6 +32,7 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./src:/var/www/html
+    user: "${UID}:${GID}"
     networks:
       - laravel-network
 
@@ -78,8 +79,17 @@ RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 # Get latest Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
+# Create system user
+ARG user=laravel
+ARG uid=1000
+RUN useradd -G www-data,root -u $uid -d /home/$user $user
+RUN mkdir -p /home/$user/.composer && \
+    chown -R $user:$user /home/$user
+
 # Set working directory
 WORKDIR /var/www/html
+
+USER $user
 EOL
 
 # Membuat konfigurasi Nginx
@@ -102,14 +112,18 @@ server {
 }
 EOL
 
+# Export UID dan GID untuk docker-compose
+export UID=$(id -u)
+export GID=$(id -g)
+
 # Build containers
 docker-compose build
 
 # Create Laravel project
 docker-compose run --rm php composer create-project laravel/laravel .
 
-# Set permissions
-sudo chown -R $USER:$USER src/
+# Set correct permissions for Laravel directories
+docker-compose run --rm php bash -c "chmod -R 775 storage bootstrap/cache"
 
 # Modify welcome.blade.php to show hello world with name
 cat > src/resources/views/welcome.blade.php << 'EOL'
@@ -148,7 +162,6 @@ cat > src/resources/views/welcome.blade.php << 'EOL'
     <body>
         <div class="message">
             <h1>Hello World!</h1>
-            <p>Created by Claude</p>
         </div>
     </body>
 </html>
@@ -164,3 +177,4 @@ echo "Kredensial Database:"
 echo "Database: laravel"
 echo "Username: laravel"
 echo "Password: secret"
+EOL
